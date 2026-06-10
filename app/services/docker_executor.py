@@ -52,12 +52,27 @@ class DockerExecutor:
     LANGUAGE_EXECUTORS = {
         "py": ["python", "-c"],
         "r": ["Rscript", "-e"],
+        "bash": ["bash", "-c"],
+        "js": ["node", "-e"],
+        # Node 24 strips TypeScript types natively; run eval input as a TS ES module
+        "ts": ["node", "--input-type=module-typescript", "-e"],
+    }
+
+    # Unprivileged user (user:group) inside each language's container image.
+    # Jupyter images ship with jovyan:users, the official Node image with node:node.
+    DEFAULT_CONTAINER_USER = ("jovyan", "users")
+    LANGUAGE_CONTAINER_USERS = {
+        "js": ("node", "node"),
+        "ts": ("node", "node"),
     }
 
     # Language-specific messages
     LANGUAGE_SPECIFIC_MESSAGES = {
         "py": {"empty_output": "Empty. Make sure to explicitly print() the results in Python"},
         "r": {"empty_output": "Empty. Make sure to use print() or cat() to display results in R"},
+        "bash": {"empty_output": "Empty. Make sure the command writes its results to stdout (e.g. echo, cat)"},
+        "js": {"empty_output": "Empty. Make sure to explicitly console.log() the results in JavaScript"},
+        "ts": {"empty_output": "Empty. Make sure to explicitly console.log() the results in TypeScript"},
     }
 
     def __init__(self):
@@ -271,7 +286,7 @@ class DockerExecutor:
         self,
         code: str,
         session_id: str,
-        lang: Literal["py", "r"],
+        lang: Literal["py", "r", "bash", "js", "ts"],
         files: Optional[List[Dict[str, Any]]] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -407,8 +422,12 @@ class DockerExecutor:
                         await asyncio.sleep(0.1)
 
                     # Fix permissions for mounted directory
+                    exec_user, exec_group = self.LANGUAGE_CONTAINER_USERS.get(lang, self.DEFAULT_CONTAINER_USER)
                     exec = await container.exec(
-                        cmd=["chown", "-R", "jovyan:users", self.DATA_MOUNT], user="root", stdout=True, stderr=True
+                        cmd=["chown", "-R", f"{exec_user}:{exec_group}", self.DATA_MOUNT],
+                        user="root",
+                        stdout=True,
+                        stderr=True,
                     )
                     # Use raw API call to get output
                     exec_url = f"exec/{exec._id}/start"
@@ -430,7 +449,7 @@ class DockerExecutor:
                     logger.info(f"Using execution command: {exec_cmd}")
 
                     # Execute the code with the appropriate interpreter
-                    exec = await container.exec(cmd=[*exec_cmd, code], user="jovyan", stdout=True, stderr=True)
+                    exec = await container.exec(cmd=[*exec_cmd, code], user=exec_user, stdout=True, stderr=True)
                     # Use raw API call to get output
                     exec_url = f"exec/{exec._id}/start"
                     async with self._docker._query(

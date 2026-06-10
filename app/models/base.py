@@ -32,10 +32,15 @@ class CodeExecutionRequest(BaseModel):
     lang: str = Field(
         ...,
         description="The programming language of the code",
-        examples=["py", "r"],
-        pattern="^(c|cpp|d|f90|go|java|js|php|py|rs|ts|r)$",
+        examples=["py", "r", "bash", "js", "ts"],
+        pattern="^(c|cpp|d|f90|go|java|js|php|py|rs|ts|r|bash)$",
     )
     args: Optional[List[str]] = Field(None, description="Optional command line arguments to pass to the program")
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional session identifier to continue an existing sandbox session",
+        pattern="^[A-Za-z0-9_-]{21}$",
+    )
     user_id: Optional[str] = Field(None, description="Optional user identifier")
     entity_id: Optional[str] = Field(
         None,

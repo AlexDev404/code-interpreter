@@ -69,6 +69,34 @@ def test_code_execution_request():
     assert len(request.files) == 1
 
 
+def test_code_execution_request_session_id_validation():
+    """Test that session_id only accepts the generate_id() format (21 chars of [A-Za-z0-9_-])."""
+    from app.utils.generate_id import generate_id
+
+    # A generated ID is accepted
+    session_id = generate_id()
+    request = CodeExecutionRequest(code="echo hi", lang="bash", session_id=session_id)
+    assert request.session_id == session_id
+
+    # Omitting it is fine
+    request = CodeExecutionRequest(code="echo hi", lang="bash")
+    assert request.session_id is None
+
+    # Path traversal and other malformed values are rejected
+    invalid_session_ids = [
+        "../../etc/passwd",
+        "../" + "a" * 18,  # 21 chars but contains traversal
+        "a/b/c",
+        "abc",  # too short
+        "a" * 22,  # too long
+        "a" * 20 + ".",  # invalid character
+        "",
+    ]
+    for invalid in invalid_session_ids:
+        with pytest.raises(ValidationError):
+            CodeExecutionRequest(code="echo hi", lang="bash", session_id=invalid)
+
+
 def test_execute_response():
     """Test ExecuteResponse model."""
     result = ExecutionResult(stdout="output", stderr="error", code=0)

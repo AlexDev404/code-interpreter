@@ -86,6 +86,10 @@ class Settings(BaseSettings):
 
     PY_CONTAINER_IMAGE: str = "jupyter/scipy-notebook:latest"
     R_CONTAINER_IMAGE: str = "jupyter/r-notebook:latest"
+    BASH_CONTAINER_IMAGE: str = "jupyter/scipy-notebook:latest"
+    # Node 24 (LTS) runs TypeScript natively via type stripping, so one image covers both
+    JS_CONTAINER_IMAGE: str = "node:24-slim"
+    TS_CONTAINER_IMAGE: str = "node:24-slim"
 
     @property
     def LANGUAGE_CONTAINERS(self) -> Dict[str, str]:
@@ -93,6 +97,9 @@ class Settings(BaseSettings):
         return {
             "py": self.PY_CONTAINER_IMAGE,
             "r": self.R_CONTAINER_IMAGE,
+            "bash": self.BASH_CONTAINER_IMAGE,
+            "js": self.JS_CONTAINER_IMAGE,
+            "ts": self.TS_CONTAINER_IMAGE,
         }
 
     # Docker execution settings

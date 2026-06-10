@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Docker executor
     await docker_executor.initialize()
-    
+
     # Start cleanup service
     await cleanup_service.start()
 

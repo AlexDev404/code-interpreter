@@ -30,7 +30,7 @@ router = APIRouter(prefix=settings.API_PREFIX)
 # Initialize services
 file_manager = FileManager()
 
-SUPPORTED_LANGUAGES = {"py", "r"}  # Python and R are supported
+SUPPORTED_LANGUAGES = {"py", "r", "bash", "js", "ts"}  # Python, R, Bash, JavaScript (Node.js) and TypeScript
 MAX_RETRIES = 3
 
 
@@ -68,6 +68,14 @@ async def execute_code(
                     "summary": "Random Number in R",
                     "value": {"code": "cat(sample(1:100, 1))", "lang": "r"},
                 },
+                "Hello World (Node.js)": {
+                    "summary": "Hello World in JavaScript",
+                    "value": {"code": "console.log('Hello, world!')", "lang": "js"},
+                },
+                "Hello World (TypeScript)": {
+                    "summary": "Hello World in TypeScript",
+                    "value": {"code": "const msg: string = 'Hello, world!'; console.log(msg)", "lang": "ts"},
+                },
             }
         ),
     ],
@@ -77,12 +85,19 @@ async def execute_code(
 
     if request.lang not in SUPPORTED_LANGUAGES:
         raise BadLanguageException(  # noqa: F821
-            message=f"Language '{request.lang}' is not supported. Please use Python ('py') or R ('r')."
+            message=f"Language '{request.lang}' is not supported. Please use Python ('py'), R ('r'), Bash ('bash'), JavaScript ('js') or TypeScript ('ts')."
         )
 
     try:
-        # Use the session ID from the first file if available, otherwise create new
-        session_id = request.files[0].session_id if request.files else generate_id()
+        # Session resolution order: explicit session_id from the request body
+        # (sent by LibreChat's bash_tool to continue a sandbox session),
+        # then the session of the first referenced file, otherwise a new one
+        if request.session_id:
+            session_id = request.session_id
+        elif request.files:
+            session_id = request.files[0].session_id
+        else:
+            session_id = generate_id()
         logger.info(f"Using session ID: {session_id}")
 
         # Get associated files if any
@@ -105,6 +120,12 @@ async def execute_code(
                 result["stdout"] = "Empty. Make sure to explicitly print the results in Python"
             elif request.lang == "r":
                 result["stdout"] = "Empty. Make sure to use print() or cat() to display results in R"
+            elif request.lang == "bash":
+                result["stdout"] = "Empty. Make sure the command writes its results to stdout (e.g. echo, cat)"
+            elif request.lang == "js":
+                result["stdout"] = "Empty. Make sure to explicitly console.log() the results in JavaScript"
+            elif request.lang == "ts":
+                result["stdout"] = "Empty. Make sure to explicitly console.log() the results in TypeScript"
             else:
                 result["stdout"] = "Empty. Make sure to explicitly output the results"
 
@@ -119,6 +140,12 @@ async def execute_code(
             version_info = f"Python {sys.version.split()[0]}"
         elif request.lang == "r":
             version_info = "R (Jupyter R-notebook)"
+        elif request.lang == "bash":
+            version_info = "Bash (Jupyter scipy-notebook)"
+        elif request.lang == "js":
+            version_info = "JavaScript (Node.js 24)"
+        elif request.lang == "ts":
+            version_info = "TypeScript (Node.js 24, type stripping)"
         else:
             version_info = f"Unknown language: {request.lang}"
 
