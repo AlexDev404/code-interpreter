@@ -89,27 +89,17 @@ async def execute_code(
         )
 
     try:
-        # Session resolution order: explicit session_id from the request body
-        # (sent by LibreChat's bash_tool to continue a sandbox session),
-        # then the session of the first referenced file, otherwise a new one
-        if request.session_id:
-            session_id = request.session_id
-        elif request.files:
-            session_id = request.files[0].session_id
-        else:
-            session_id = generate_id()
+        # Execution sessions are distinct from storage sessions: each request
+        # gets a fresh sandbox session unless one is explicitly continued.
+        # Referenced input files are staged into it from their own storage
+        # sessions, which may differ per file.
+        session_id = request.session_id or generate_id()
         logger.info(f"Using session ID: {session_id}")
 
-        # Get associated files if any
+        # Stage referenced input files into the execution session directory
         files = []
         if request.files:
-            for file_ref in request.files:
-                try:
-                    file_info = await file_manager.get_file(file_ref.session_id, file_ref.id)
-                    files.append(file_info)
-                except FileNotFoundError:
-                    logger.warning(f"File not found: {file_ref.id}")
-                    continue
+            files = await file_manager.stage_files(session_id, request.files)
 
         # Execute code in Docker container
         result = await docker_executor.execute(code=request.code, session_id=session_id, lang=request.lang, files=files)
@@ -129,9 +119,16 @@ async def execute_code(
             else:
                 result["stdout"] = "Empty. Make sure to explicitly output the results"
 
-        # Convert output files to FileRef model
+        # Convert output files to FileRef model. Generated files are stored in
+        # the execution session directory, so that is their storage session.
         output_files = [
-            FileRef(id=file["id"], name=file["filename"], path=file["filepath"]) for file in result.get("files", [])
+            FileRef(
+                id=file["id"],
+                name=file.get("relative_path", file["filename"]),
+                storage_session_id=file["session_id"],
+                path=file["filepath"],
+            )
+            for file in result.get("files", [])
         ]
 
         # Get language-specific version information

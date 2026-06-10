@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -10,19 +10,31 @@ class Error(BaseModel):
 
 
 class FileRef(BaseModel):
-    """File reference model as defined in OpenAPI spec."""
+    """File reference returned from code execution."""
 
     id: str
-    name: str  # Name of the file, just the filename, not the path
+    name: str  # Relative path of the file within the session directory
+    storage_session_id: Optional[str] = None  # Session whose storage serves this file
     path: Optional[str] = None
 
 
 class RequestFile(BaseModel):
-    """Request file model as defined in OpenAPI spec."""
+    """Input file reference sent by LibreChat in execution requests.
+
+    Each file points at the storage session it was uploaded to (or generated
+    in), which may differ per file and from the execution session.
+    """
 
     id: str
-    session_id: str
+    storage_session_id: str = Field(
+        ...,
+        description="Storage session the file lives in",
+        pattern="^[A-Za-z0-9_-]{21}$",
+    )
     name: str
+    resource_id: Optional[str] = None  # Entity owning the storage session (informational)
+    kind: Optional[Literal["user", "agent", "skill"]] = None
+    version: Optional[int] = None  # Only sent for kind == "skill"
 
 
 class CodeExecutionRequest(BaseModel):

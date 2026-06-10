@@ -1,18 +1,23 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Literal
 from pydantic import BaseModel
-from datetime import datetime
 
 from .base import FileObject, ExecuteResponse, UploadResponse, Error
 
 
 class LibreChatFileRef(BaseModel):
-    """LibreChat-specific file reference."""
+    """File reference returned in execution responses.
 
-    id: str  # Unique identifier for the file
-    name: str  # Name of the file, just the filename, not the path
-    path: Optional[str] = (
-        None  # Path to the file in the system, not sure if needed based on LibreChat processCodeOutput method inputs
-    )
+    LibreChat downloads each generated file from
+    /download/{storage_session_id}/{id} and uses `name` (which may contain
+    directories) to place it back at the same /mnt/data path later.
+    """
+
+    id: str
+    name: str
+    storage_session_id: Optional[str] = None
+    # Unchanged input passthroughs are marked inherited so LibreChat skips
+    # re-downloading them as generated artifacts
+    inherited: Optional[bool] = None
 
 
 class LibreChatUploadFileObject(BaseModel):
@@ -23,10 +28,10 @@ class LibreChatUploadFileObject(BaseModel):
 
 
 class LibreChatUploadResponse(BaseModel):
-    """LibreChat-specific upload response."""
+    """Upload response: LibreChat reads `storage_session_id` and `files[0].fileId`."""
 
     message: str
-    session_id: str
+    storage_session_id: str
     files: List[LibreChatUploadFileObject]
 
     @classmethod
@@ -34,23 +39,66 @@ class LibreChatUploadResponse(BaseModel):
         """Convert base UploadResponse to LibreChat format."""
         return cls(
             message="success",
-            session_id=response.session_id,
+            storage_session_id=response.session_id,
             files=[LibreChatUploadFileObject(fileId=f.id, filename=f.name) for f in response.files],
         )
 
 
+class LibreChatBatchUploadFileResult(BaseModel):
+    """Per-file result in a batch upload response."""
+
+    status: Literal["success", "error"]
+    filename: str
+    fileId: Optional[str] = None
+    error: Optional[str] = None
+
+
+class LibreChatBatchUploadResponse(BaseModel):
+    """Batch upload response: all files share one storage session."""
+
+    message: str
+    storage_session_id: str
+    files: List[LibreChatBatchUploadFileResult]
+    succeeded: int
+    failed: int
+
+
+class LibreChatSessionObjectInfo(BaseModel):
+    """Response for the session object liveness check.
+
+    LibreChat compares `lastModified` against a 23h window to decide
+    whether to re-upload the file.
+    """
+
+    lastModified: str
+
+
 class LibreChatFileObject(BaseModel):
-    """LibreChat-specific file object."""
+    """File object in session file listings (GET /files/{session_id}).
+
+    LibreChat's `normalizeSessionFile` reads `id`, `storage_session_id`,
+    `name` ("session_id/fileId" form) and `metadata['original-filename']`.
+    """
 
     name: str  # Format: session_id/fileId
+    id: str
+    storage_session_id: str
     lastModified: str
+    metadata: Dict[str, Optional[str]]
 
     @classmethod
     def from_base(cls, file: FileObject) -> "LibreChatFileObject":
         """Convert base FileObject to LibreChat format."""
+        original_filename = (file.metadata.original_filename if file.metadata else None) or file.name
         return cls(
             name=f"{file.session_id}/{file.id}",
+            id=file.id,
+            storage_session_id=file.session_id,
             lastModified=file.lastModified,
+            metadata={
+                "content-type": file.contentType,
+                "original-filename": original_filename,
+            },
         )
 
 
@@ -69,7 +117,14 @@ class LibreChatExecuteResponse(BaseModel):
             session_id=response.session_id,
             stdout=response.run.stdout or "",
             stderr=response.run.stderr or "",
-            files=[f.model_dump() for f in response.files] if response.files else None,
+            files=(
+                [
+                    LibreChatFileRef(id=f.id, name=f.name, storage_session_id=f.storage_session_id)
+                    for f in response.files
+                ]
+                if response.files
+                else None
+            ),
         )
 
 

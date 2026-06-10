@@ -4,6 +4,7 @@ import aiofiles
 from loguru import logger
 import hashlib
 import magic
+import shutil
 from datetime import datetime, timezone
 
 from ..shared.config import get_settings
@@ -134,6 +135,47 @@ class FileManager:
                 response["content"] = content
 
         return response
+
+    async def stage_files(self, session_id: str, files: List[Any]) -> List[Dict[str, Any]]:
+        """Copy referenced files from their storage sessions into the execution session.
+
+        LibreChat references input files by (storage_session_id, id) where each
+        file may live in a different storage session. To make them available at
+        /mnt/data, they are copied into the execution session directory under
+        their relative `name` (which may contain subdirectories).
+
+        Returns a list of staged file descriptors with their relative names.
+        """
+        staged = []
+        session_dir = self._get_session_dir(session_id)
+
+        for ref in files:
+            try:
+                file_info = await db_manager.get_file(ref.storage_session_id, ref.id)
+            except FileNotFoundError:
+                logger.warning(f"Referenced file not found: {ref.storage_session_id}/{ref.id} ({ref.name})")
+                continue
+
+            source = self.upload_path / file_info["filepath"]
+            if not source.is_file():
+                logger.warning(f"Referenced file missing on disk: {source}")
+                continue
+
+            # The name may contain subdirectories but must stay within the session dir
+            rel_path = Path(ref.name)
+            if rel_path.is_absolute() or ".." in rel_path.parts:
+                logger.warning(f"Rejected unsafe file name for staging: {ref.name}")
+                continue
+
+            destination = session_dir / rel_path
+            if source.resolve() != destination.resolve():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+                logger.info(f"Staged file {source} -> {destination}")
+
+            staged.append({**file_info, "name": str(rel_path)})
+
+        return staged
 
     async def delete_file(self, session_id: str, file_id: str) -> None:
         """Delete a file."""

@@ -61,12 +61,33 @@ def test_code_execution_request():
         args=["--verbose"],
         user_id="user123",
         entity_id="asst_123",
-        files=[RequestFile(id="1", session_id="sess1", name="test.txt")],
+        files=[
+            RequestFile(
+                id="1",
+                storage_session_id="a" * 21,
+                name="test.txt",
+                resource_id="user123",
+                kind="user",
+            )
+        ],
     )
     assert request.args == ["--verbose"]
     assert request.user_id == "user123"
     assert request.entity_id == "asst_123"
     assert len(request.files) == 1
+
+
+def test_request_file_storage_session_id_validation():
+    """Test that storage_session_id rejects path traversal and malformed values."""
+    valid_id = "a" * 21
+
+    file = RequestFile(id="1", storage_session_id=valid_id, name="test.txt")
+    assert file.storage_session_id == valid_id
+    assert file.kind is None
+
+    for invalid in ["../../etc/passwd", "a/b/c", "abc", "a" * 22, ""]:
+        with pytest.raises(ValidationError):
+            RequestFile(id="1", storage_session_id=invalid, name="test.txt")
 
 
 def test_code_execution_request_session_id_validation():
@@ -128,7 +149,7 @@ def test_librechat_upload_response():
     # Convert to LibreChat format
     libre_response = LibreChatUploadResponse.from_base(base_response)
     assert libre_response.message == "success"
-    assert libre_response.session_id == "sess1"
+    assert libre_response.storage_session_id == "sess1"
     assert len(libre_response.files) == 1
     assert libre_response.files[0].fileId == "123"
     assert libre_response.files[0].filename == "test.txt"
@@ -145,7 +166,10 @@ def test_librechat_file_object():
     # Convert to LibreChat format
     libre_file = LibreChatFileObject.from_base(base_file)
     assert libre_file.name == "sess1/123"
+    assert libre_file.id == "123"
+    assert libre_file.storage_session_id == "sess1"
     assert libre_file.lastModified == last_modified
+    assert libre_file.metadata["original-filename"] == "test.txt"
 
 
 def test_librechat_execute_response():
@@ -153,7 +177,11 @@ def test_librechat_execute_response():
     # Create base response
     result = ExecutionResult(stdout="output", stderr="error")
     base_response = ExecuteResponse(
-        run=result, language="py", version="3.9.0", session_id="sess1", files=[FileRef(id="1", name="output.txt")]
+        run=result,
+        language="py",
+        version="3.9.0",
+        session_id="sess1",
+        files=[FileRef(id="1", name="output.txt", storage_session_id="sess1")],
     )
 
     # Convert to LibreChat format
@@ -163,6 +191,7 @@ def test_librechat_execute_response():
     assert libre_response.stderr == "error"
     assert libre_response.files is not None
     assert len(libre_response.files) == 1
+    assert libre_response.files[0].storage_session_id == "sess1"
 
 
 def test_librechat_error():

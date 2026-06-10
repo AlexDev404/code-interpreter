@@ -42,7 +42,13 @@ print(f'File content: {content}')
         json={
             "code": read_file_code,
             "lang": "py",
-            "files": [{"id": result["files"][0]["id"], "session_id": session_id, "name": "test.txt"}]
+            "files": [
+                {
+                    "id": result["files"][0]["id"],
+                    "storage_session_id": result["files"][0]["storage_session_id"],
+                    "name": "test.txt",
+                }
+            ]
         }
     )
     
@@ -89,7 +95,10 @@ for file in files:
         json={
             "code": list_files_code,
             "lang": "py",
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in created_files]
+            "files": [
+                {"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]}
+                for f in created_files
+            ]
         }
     )
 

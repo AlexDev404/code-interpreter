@@ -63,7 +63,7 @@ print('Files created and modified')
             "code": execute_code,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -130,7 +130,7 @@ print('Modifications complete')
             "code": modify_code,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -159,7 +159,7 @@ print('Size change complete')
             "code": grow_code,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in returned_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in returned_files]
         }
     )
     
@@ -211,7 +211,7 @@ print('File deleted and new file created')
             "code": delete_code,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     

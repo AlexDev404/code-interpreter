@@ -32,7 +32,7 @@ def test_zero_byte_files():
             "code": "with open('/mnt/data/empty.txt', 'w') as f: f.write('Now has content')",
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -73,7 +73,7 @@ with open('/mnt/data/file2.txt', 'w') as f: f.write(content)
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -113,7 +113,7 @@ with open('/mnt/data/recreate.txt', 'w') as f: f.write('New content after recrea
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -148,7 +148,7 @@ def test_special_characters_in_filename():
             "code": r"""with open('/mnt/data/special!@#$%^&*().txt', 'w') as f: f.write('Modified content')""",
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -189,7 +189,7 @@ with open('/mnt/data/你好世界.txt', 'w') as f:
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -230,7 +230,7 @@ with open('/mnt/data/same_size.txt', 'w') as f:
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -277,7 +277,7 @@ print('Binary file modified')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -324,7 +324,7 @@ print('Modified deeply nested file')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -365,7 +365,7 @@ print('Rewrote file with identical content')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -415,7 +415,7 @@ print('Multiple edits completed')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -459,7 +459,7 @@ print('Modified null bytes file')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -520,7 +520,7 @@ print('Modified first 10 characters of file')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -568,7 +568,7 @@ print('Modified 10 files')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -620,7 +620,7 @@ print('Appended to file')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -680,7 +680,7 @@ print(f'Final content: {new_content}')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -722,7 +722,7 @@ print('File renamed')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     
@@ -784,7 +784,7 @@ print('Modified JSON file')
 """,
             "lang": "py",
             "session_id": session_id,
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in initial_files]
+            "files": [{"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]} for f in initial_files]
         }
     )
     

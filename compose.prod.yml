@@ -3,7 +3,7 @@ services:
     image: ghcr.io/martvaha/code-interpreter:latest
     container_name: code-interpreter
     restart: unless-stopped
-    privileged: true
+    privileged: false
     env_file:
       - .env
     environment:

@@ -38,7 +38,13 @@ print(f'File content: {content}')
         json={
             "code": read_file_code,
             "lang": "py",
-            "files": [{"id": result["files"][0]["id"], "session_id": session_id, "name": "test.txt"}],
+            "files": [
+                {
+                    "id": result["files"][0]["id"],
+                    "storage_session_id": result["files"][0]["storage_session_id"],
+                    "name": "test.txt",
+                }
+            ],
         },
     )
 
@@ -80,7 +86,10 @@ for file in files:
         json={
             "code": read_files_code,
             "lang": "py",
-            "files": [{"id": f["id"], "session_id": session_id, "name": f["name"]} for f in result["files"]],
+            "files": [
+                {"id": f["id"], "storage_session_id": f["storage_session_id"], "name": f["name"]}
+                for f in result["files"]
+            ],
         },
     )
 
@@ -142,6 +151,213 @@ print('File created')
     assert len(files) == 1
     assert files[0]["name"] == f"{session_id}/{file_id}"
     assert files[0]["lastModified"] is not None
+
+
+def test_upload_returns_storage_session_id():
+    """Test that upload responds with the storage_session_id LibreChat reads."""
+    response = client.post(
+        "/v1/librechat/upload",
+        files={"file": ("data.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"kind": "user", "id": "user123"},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["message"] == "success"
+    assert "storage_session_id" in result
+    assert len(result["files"]) == 1
+    assert result["files"][0]["filename"] == "data.csv"
+    assert result["files"][0]["fileId"]
+
+
+def test_batch_upload():
+    """Test batch upload sharing one storage session with per-file results."""
+    response = client.post(
+        "/v1/librechat/upload/batch",
+        files=[
+            ("file", ("one.txt", b"first", "text/plain")),
+            ("file", ("two.txt", b"second", "text/plain")),
+        ],
+        data={"kind": "user", "id": "user123"},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["message"] == "success"
+    assert result["succeeded"] == 2
+    assert result["failed"] == 0
+    assert len(result["files"]) == 2
+    assert all(f["status"] == "success" and f["fileId"] for f in result["files"])
+
+    # Both files must be downloadable from the shared storage session
+    session_id = result["storage_session_id"]
+    for f, expected in zip(result["files"], [b"first", b"second"]):
+        download = client.get(f"/v1/librechat/download/{session_id}/{f['fileId']}")
+        assert download.status_code == 200
+        assert download.content == expected
+
+
+def test_session_object_liveness_check():
+    """Test the GET /sessions/{sid}/objects/{fid} endpoint used by primeCodeFiles."""
+    upload = client.post(
+        "/v1/librechat/upload",
+        files={"file": ("alive.txt", b"still here", "text/plain")},
+        data={"kind": "user", "id": "user123"},
+    )
+    assert upload.status_code == 200
+    result = upload.json()
+    session_id = result["storage_session_id"]
+    file_id = result["files"][0]["fileId"]
+
+    response = client.get(
+        f"/v1/librechat/sessions/{session_id}/objects/{file_id}",
+        params={"kind": "user", "id": "user123"},
+    )
+    assert response.status_code == 200
+    assert response.json()["lastModified"]
+
+    # Missing objects must 404 so LibreChat falls back to re-upload
+    response = client.get(f"/v1/librechat/sessions/{session_id}/objects/nonexistent")
+    assert response.status_code == 404
+
+
+def test_delete_session_object():
+    """Test the DELETE /sessions/{sid}/objects/{fid} endpoint."""
+    upload = client.post(
+        "/v1/librechat/upload",
+        files={"file": ("doomed.txt", b"delete me", "text/plain")},
+    )
+    assert upload.status_code == 200
+    result = upload.json()
+    session_id = result["storage_session_id"]
+    file_id = result["files"][0]["fileId"]
+
+    response = client.delete(f"/v1/librechat/sessions/{session_id}/objects/{file_id}")
+    assert response.status_code == 200
+
+    response = client.get(f"/v1/librechat/sessions/{session_id}/objects/{file_id}")
+    assert response.status_code == 404
+
+
+def test_exec_with_uploaded_file():
+    """Test the full LibreChat flow: upload, then exec referencing the storage session."""
+    upload = client.post(
+        "/v1/librechat/upload",
+        files={"file": ("driver_data.csv", b"driver,points\nalice,25\nbob,18\n", "text/csv")},
+        data={"kind": "user", "id": "user123"},
+    )
+    assert upload.status_code == 200
+    uploaded = upload.json()
+    storage_session_id = uploaded["storage_session_id"]
+    file_id = uploaded["files"][0]["fileId"]
+
+    # Exec the way LibreChat v0.8.6 does: no top-level session_id, per-file
+    # refs carrying storage_session_id/kind/resource_id
+    response = client.post(
+        "/v1/librechat/exec",
+        json={
+            "code": "cat /mnt/data/driver_data.csv",
+            "lang": "bash",
+            "user_id": "user123",
+            "files": [
+                {
+                    "id": file_id,
+                    "name": "driver_data.csv",
+                    "storage_session_id": storage_session_id,
+                    "resource_id": "user123",
+                    "kind": "user",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert "driver,points" in result["stdout"]
+    assert "alice,25" in result["stdout"]
+    # A fresh exec session is created; the input file is staged into it
+    assert result["session_id"] != storage_session_id
+
+
+def test_exec_with_files_from_multiple_storage_sessions():
+    """Test that files from different storage sessions are staged together."""
+    refs = []
+    for filename, content in [("first.txt", b"alpha"), ("second.txt", b"beta")]:
+        upload = client.post("/v1/librechat/upload", files={"file": (filename, content, "text/plain")})
+        assert upload.status_code == 200
+        uploaded = upload.json()
+        refs.append(
+            {
+                "id": uploaded["files"][0]["fileId"],
+                "name": filename,
+                "storage_session_id": uploaded["storage_session_id"],
+                "kind": "user",
+            }
+        )
+
+    # Each upload created its own storage session
+    assert refs[0]["storage_session_id"] != refs[1]["storage_session_id"]
+
+    response = client.post(
+        "/v1/librechat/exec",
+        json={"code": "cat /mnt/data/first.txt /mnt/data/second.txt", "lang": "bash", "files": refs},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert "alpha" in result["stdout"]
+    assert "beta" in result["stdout"]
+
+
+def test_exec_generated_file_carries_storage_session_id():
+    """Test that generated files return refs LibreChat can download and re-inject."""
+    response = client.post(
+        "/v1/librechat/exec",
+        json={"code": "echo 'artifact' > /mnt/data/out.txt && echo done", "lang": "bash"},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["files"], "Generated file should be returned"
+    file_ref = result["files"][0]
+    assert file_ref["name"] == "out.txt"
+    assert file_ref["storage_session_id"] == result["session_id"]
+
+    # The ref must be downloadable (processCodeOutput path)
+    download = client.get(f"/v1/librechat/download/{file_ref['storage_session_id']}/{file_ref['id']}")
+    assert download.status_code == 200
+    assert download.content.decode().strip() == "artifact"
+
+    # And re-injectable into a later exec (subsequent tool call path)
+    response2 = client.post(
+        "/v1/librechat/exec",
+        json={
+            "code": "cat /mnt/data/out.txt",
+            "lang": "bash",
+            "files": [
+                {
+                    "id": file_ref["id"],
+                    "name": file_ref["name"],
+                    "storage_session_id": file_ref["storage_session_id"],
+                    "kind": "user",
+                }
+            ],
+        },
+    )
+    assert response2.status_code == 200
+    assert "artifact" in response2.json()["stdout"]
+
+
+def test_exec_unsupported_language_returns_valid_response():
+    """Unsupported languages must return a schema-valid 200 with the message in stdout."""
+    # 'java' passes request validation but is not in SUPPORTED_LANGUAGES
+    response = client.post("/v1/librechat/exec", json={"code": "System.out.println(1);", "lang": "java"})
+
+    assert response.status_code == 200
+    result = response.json()
+    assert "not supported" in result["stdout"]
+    assert result["session_id"]
+    assert result["stderr"] == ""
 
 
 def test_file_download():

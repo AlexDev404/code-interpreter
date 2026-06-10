@@ -183,12 +183,9 @@ class DockerExecutor:
                 changed_files.add(rel_path)
             else:
                 before_state = before_states[rel_path]
-                # Check if file was modified (size, hash, or timestamp changed)
-                if (
-                    before_state.size != after_state.size
-                    or before_state.md5_hash != after_state.md5_hash
-                    or before_state.mtime != after_state.mtime
-                ):
+                # Check if file content was modified. mtime alone is not enough:
+                # rewriting identical content updates the timestamp but is not a change.
+                if before_state.size != after_state.size or before_state.md5_hash != after_state.md5_hash:
                     logger.info(
                         f"Modified file detected: {rel_path}, before={before_state.size}:{before_state.md5_hash}:{before_state.mtime}, after={after_state.size}:{after_state.md5_hash}:{after_state.mtime}"
                     )
@@ -499,13 +496,15 @@ class DockerExecutor:
                             file_data = {
                                 "id": file_id,
                                 "session_id": session_id,
-                                "filename": filename,  # This is used by the API to convert to FileRef.name
+                                "filename": filename,
                                 "filepath": filepath,
                                 "size": file_size,
                                 "content_type": content_type,
                                 "original_filename": filename,
                                 "etag": etag,
-                                "name": f"{session_id}/{file_id}/{filename}",  # Full path for storage/reference
+                                # Relative path within the session dir; preserves directory
+                                # structure so LibreChat can restage nested artifacts
+                                "relative_path": rel_path,
                             }
                             logger.info(f"Saving file metadata to database: {file_data}")
 
