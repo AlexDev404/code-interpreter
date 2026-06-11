@@ -71,6 +71,10 @@ class Settings(BaseSettings):
 
     HOST_FILE_UPLOAD_PATH: Path = Path("uploads")  # Base directory for uploaded files
 
+    # Path inside the container where files are read/written. Must match
+    # the CONTAINER_UPLOAD_PATH env var read by const.py and the target of the volume mount.
+    CONTAINER_UPLOAD_PATH: Path = Path("/app/uploads")
+
     @property
     def HOST_FILE_UPLOAD_PATH_ABS(self) -> Path:
         """Full path to the file upload directory. Absolute path is required for Docker volume mounts."""
@@ -84,7 +88,7 @@ class Settings(BaseSettings):
     CLEANUP_RUN_INTERVAL: int = 3600  # How often to run the cleanup in seconds
     CLEANUP_FILE_MAX_AGE: int = 86400  # How old files can be before they are deleted in seconds
 
-    PY_CONTAINER_IMAGE: str = "jupyter/scipy-notebook:latest"
+    PY_CONTAINER_IMAGE: str = "python:3.11-slim"  # Override with jupyter/scipy-notebook:latest for numpy/pandas/matplotlib support.
     R_CONTAINER_IMAGE: str = "jupyter/r-notebook:latest"
     BASH_CONTAINER_IMAGE: str = "jupyter/scipy-notebook:latest"
     # Node 24 (LTS) runs TypeScript natively via type stripping, so one image covers both
@@ -116,4 +120,16 @@ def get_settings() -> Settings:
     """Get cached settings instance."""
     settings = Settings()
     logger.info(f"Settings: {settings.HOST_FILE_UPLOAD_PATH_ABS}")
+
+    # Validate that HOST_FILE_UPLOAD_PATH_ABS is absolute
+    if not settings.HOST_FILE_UPLOAD_PATH_ABS.is_absolute():
+        raise ValueError(
+            f"Upload host path '{settings.HOST_FILE_UPLOAD_PATH_ABS}' is not absolute. "
+            "Set HOST_FILE_UPLOAD_PATH to an absolute path, or set HOST_PATH to the "
+            "absolute path of your project directory."
+        )
+
+    # Auto-create the container-internal upload directory
+    settings.CONTAINER_UPLOAD_PATH.mkdir(parents=True, exist_ok=True)
+
     return settings

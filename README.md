@@ -42,6 +42,30 @@ LIBRECHAT_CODE_BASEURL=http(s)://host:port/v1/librechat # for local testing use 
 ```
 
 
+## Embedded / pre-built image deployment
+
+Use `compose.prebuilt.yml` when running the pre-built image as part of another stack
+(e.g. embedded alongside LibreChat). Use the default `compose.yml` only for local
+development from source.
+
+The service uses two path concepts: **CONTAINER_UPLOAD_PATH** is the path inside the
+code-interpreter container where files are read and written; **HOST_FILE_UPLOAD_PATH**
+is the absolute path on the Docker host that the daemon uses as a bind-mount source
+when spawning execution containers. A volume mount connects the two so that both
+the app and execution containers see the same files.
+
+```bash
+docker compose -f compose.prebuilt.yml up
+```
+
+Configure LibreChat to talk to the code interpreter:
+
+```ini
+LIBRECHAT_CODE_API_KEY=anything
+LIBRECHAT_CODE_BASEURL=http://host.docker.internal:8000/v1/librechat
+```
+
+
 ## Development
 
 ### Installation
