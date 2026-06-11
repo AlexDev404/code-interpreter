@@ -43,10 +43,15 @@ def _derive_session_id(user_id: Optional[str], entity_id: Optional[str]) -> str:
     based on available identifiers so that subsequent requests from the same
     user/entity reuse the same sandbox container instead of creating a new one
     every time.
+
+    When neither identifier is provided, a fixed default key is used so that
+    anonymous requests still reuse a single container. In multi-user
+    deployments, callers should supply at least user_id for proper isolation.
     """
     key = f"{user_id or 'default'}:{entity_id or 'default'}"
     raw = hashlib.sha256(key.encode()).digest()
-    # base64url encoding gives us A-Za-z0-9_- characters (no padding chars in first 21)
+    # base64url encoding produces A-Za-z0-9_- characters; strip padding to
+    # ensure all 21 characters match the session_id pattern.
     encoded = base64.urlsafe_b64encode(raw).decode().rstrip("=")
     # Take exactly 21 characters to match the session_id pattern ^[A-Za-z0-9_-]{21}$
     return encoded[:21]
