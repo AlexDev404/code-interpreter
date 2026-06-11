@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # Docker network settings
     DOCKER_NETWORK_ENABLED: bool = False  # Whether Docker containers have network access
 
+    # Docker container privilege settings
+    CONTAINER_ROOT_ACCESS: bool = False  # Whether containers run as root user
+
+    # Persistent container settings
+    CONTAINER_MAX_IDLE_TIME: int = 259200  # Max idle time before container cleanup in seconds (default: 3 days)
+
 
 @lru_cache()
 def get_settings() -> Settings:
