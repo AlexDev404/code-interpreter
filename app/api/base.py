@@ -2,6 +2,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Path, Form
 from fastapi.params import Body
 from fastapi.responses import StreamingResponse
 from typing import Annotated, List, Optional
+import hashlib
+import base64
 import sys
 from loguru import logger
 from io import BytesIO
@@ -32,6 +34,23 @@ file_manager = FileManager()
 
 SUPPORTED_LANGUAGES = {"py", "r", "bash", "js", "ts"}  # Python, R, Bash, JavaScript (Node.js) and TypeScript
 MAX_RETRIES = 3
+
+
+def _derive_session_id(user_id: Optional[str]) -> str:
+    """Derive a deterministic session_id from user_id.
+
+    LibreChat does not pass a session_id when executing code, so we derive a
+    stable one from user_id to ensure one persistent container per user.
+    When user_id is not provided, a fixed default key is used so that
+    anonymous requests still reuse a single container.
+    """
+    key = user_id or "default"
+    raw = hashlib.sha256(key.encode()).digest()
+    # base64url encoding produces A-Za-z0-9_- characters; strip padding to
+    # ensure all 21 characters match the session_id pattern.
+    encoded = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    # Take exactly 21 characters to match the session_id pattern ^[A-Za-z0-9_-]{21}$
+    return encoded[:21]
 
 
 @router.post(
@@ -93,7 +112,9 @@ async def execute_code(
         # gets a fresh sandbox session unless one is explicitly continued.
         # Referenced input files are staged into it from their own storage
         # sessions, which may differ per file.
-        session_id = request.session_id or generate_id()
+        # When session_id is not provided, derive a deterministic one from
+        # user_id/entity_id so the same user/entity reuses the same container.
+        session_id = request.session_id or _derive_session_id(request.user_id)
         logger.info(f"Using session ID: {session_id}")
 
         # Stage referenced input files into the execution session directory
