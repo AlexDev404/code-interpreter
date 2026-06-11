@@ -36,19 +36,15 @@ SUPPORTED_LANGUAGES = {"py", "r", "bash", "js", "ts"}  # Python, R, Bash, JavaSc
 MAX_RETRIES = 3
 
 
-def _derive_session_id(user_id: Optional[str], entity_id: Optional[str]) -> str:
-    """Derive a deterministic session_id from user_id and/or entity_id.
+def _derive_session_id(user_id: Optional[str]) -> str:
+    """Derive a deterministic session_id from user_id.
 
-    When the client does not provide a session_id, we generate a stable one
-    based on available identifiers so that subsequent requests from the same
-    user/entity reuse the same sandbox container instead of creating a new one
-    every time.
-
-    When neither identifier is provided, a fixed default key is used so that
-    anonymous requests still reuse a single container. In multi-user
-    deployments, callers should supply at least user_id for proper isolation.
+    LibreChat does not pass a session_id when executing code, so we derive a
+    stable one from user_id to ensure one persistent container per user.
+    When user_id is not provided, a fixed default key is used so that
+    anonymous requests still reuse a single container.
     """
-    key = f"{user_id or 'default'}:{entity_id or 'default'}"
+    key = user_id or "default"
     raw = hashlib.sha256(key.encode()).digest()
     # base64url encoding produces A-Za-z0-9_- characters; strip padding to
     # ensure all 21 characters match the session_id pattern.
@@ -118,7 +114,7 @@ async def execute_code(
         # sessions, which may differ per file.
         # When session_id is not provided, derive a deterministic one from
         # user_id/entity_id so the same user/entity reuses the same container.
-        session_id = request.session_id or _derive_session_id(request.user_id, request.entity_id)
+        session_id = request.session_id or _derive_session_id(request.user_id)
         logger.info(f"Using session ID: {session_id}")
 
         # Stage referenced input files into the execution session directory
