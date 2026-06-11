@@ -317,14 +317,6 @@ class DockerExecutor:
             logger.info(f"Session path: {session_path}")
             session_path.mkdir(parents=True, exist_ok=True)
 
-            # Warn if the corresponding host-side path does not exist
-            host_session_path = settings.HOST_FILE_UPLOAD_PATH_ABS / session_id
-            if not host_session_path.exists():
-                logger.warning(
-                    f"Host session path does not exist: {host_session_path}. "
-                    "This will cause the Docker bind mount to fail. "
-                    "Ensure HOST_FILE_UPLOAD_PATH_ABS is mounted into this container."
-                )
             # Log debug information
             logger.info(f"Session directory: {session_path}")
             logger.info(f"Session directory contents: {list(session_path.glob('*'))}")
@@ -399,15 +391,15 @@ class DockerExecutor:
                     config = {
                         "Image": image_name,
                         "Cmd": ["sleep", "infinity"],
-                        "WorkingDir": self.WORK_DIR,
+                        "WorkingDir": f"{self.DATA_MOUNT}/{session_id}",
                         "NetworkDisabled": not network_enabled,
                         "HostConfig": {
                             "Memory": memory_limit_mb * 1024 * 1024,  # Convert MB to bytes
                             "NanoCpus": int(cpu_limit * 1e9),  # Convert CPU cores to nano CPUs
                             "Mounts": [
                                 {
-                                    "Type": "bind",
-                                    "Source": str(settings.HOST_FILE_UPLOAD_PATH_ABS / session_id),
+                                    "Type": "volume",
+                                    "Source": settings.UPLOADS_VOLUME_NAME,
                                     "Target": self.DATA_MOUNT,
                                 }
                             ],
@@ -440,7 +432,7 @@ class DockerExecutor:
                     # Fix permissions for mounted directory
                     exec_user, exec_group = self.LANGUAGE_CONTAINER_USERS.get(lang, self.DEFAULT_CONTAINER_USER)
                     exec = await container.exec(
-                        cmd=["chown", "-R", f"{exec_user}:{exec_group}", self.DATA_MOUNT],
+                        cmd=["chown", "-R", f"{exec_user}:{exec_group}", f"{self.DATA_MOUNT}/{session_id}"],
                         user="root",
                         stdout=True,
                         stderr=True,

@@ -5,8 +5,7 @@ services:
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:
-      - CONTAINER_UPLOAD_PATH=/uploads
-      - HOST_FILE_UPLOAD_PATH=/tmp/code-interpreter-uploads
+      - UPLOADS_VOLUME_NAME=ci-uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s
@@ -15,4 +14,7 @@ services:
       start_period: 15s
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /tmp/code-interpreter-uploads:/uploads
+      - ci-uploads:/app/uploads
+
+volumes:
+  ci-uploads:

@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # the CONTAINER_UPLOAD_PATH env var read by const.py and the target of the volume mount.
     CONTAINER_UPLOAD_PATH: Path = Path("/app/uploads")
 
+    # Name of the Docker named volume shared between the code-interpreter
+    # container and execution containers. Must match the volume name in your compose file.
+    UPLOADS_VOLUME_NAME: str = "ci-uploads"
+
     @property
     def HOST_FILE_UPLOAD_PATH_ABS(self) -> Path:
         """Full path to the file upload directory. Absolute path is required for Docker volume mounts."""
@@ -119,15 +123,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     settings = Settings()
-    logger.info(f"Settings: {settings.HOST_FILE_UPLOAD_PATH_ABS}")
-
-    # Validate that HOST_FILE_UPLOAD_PATH_ABS is absolute
-    if not settings.HOST_FILE_UPLOAD_PATH_ABS.is_absolute():
-        raise ValueError(
-            f"Upload host path '{settings.HOST_FILE_UPLOAD_PATH_ABS}' is not absolute. "
-            "Set HOST_FILE_UPLOAD_PATH to an absolute path, or set HOST_PATH to the "
-            "absolute path of your project directory."
-        )
+    logger.info(f"Settings: UPLOADS_VOLUME_NAME={settings.UPLOADS_VOLUME_NAME}")
 
     # Auto-create the container-internal upload directory
     settings.CONTAINER_UPLOAD_PATH.mkdir(parents=True, exist_ok=True)

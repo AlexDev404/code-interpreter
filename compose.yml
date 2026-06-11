@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
     environment:
-      - HOST_PATH=$PWD
+      - UPLOADS_VOLUME_NAME=ci-uploads
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     healthcheck:
@@ -24,6 +24,8 @@ services:
       - .:/app/
       - venv:/app/.venv
       - /var/run/docker.sock:/var/run/docker.sock
+      - ci-uploads:/app/uploads
 
 volumes:
   venv:
+  ci-uploads:
