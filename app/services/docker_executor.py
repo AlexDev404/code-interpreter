@@ -8,7 +8,7 @@ import asyncio
 import contextlib
 import fcntl
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import mimetypes
 from app.shared.const import UPLOAD_PATH
@@ -151,7 +151,7 @@ class DockerExecutor:
                 session_id = labels.get("session-id")
                 if session_id and info["State"]["Running"]:
                     self._session_containers[session_id] = container.id
-                    self._session_last_activity[session_id] = datetime.now()
+                    self._session_last_activity[session_id] = datetime.now(timezone.utc)
                     logger.info(f"Recovered persistent container {container.id} for session {session_id}")
                 elif session_id and not info["State"]["Running"]:
                     # Remove stopped containers from a previous run
@@ -177,7 +177,7 @@ class DockerExecutor:
     async def _cleanup_idle_containers(self):
         """Remove persistent containers that have been idle longer than CONTAINER_MAX_IDLE_TIME."""
         max_idle_seconds = settings.CONTAINER_MAX_IDLE_TIME
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         sessions_to_remove = []
 
         async with self._lock:
@@ -217,7 +217,7 @@ class DockerExecutor:
                 if info["State"]["Running"]:
                     # Update last activity
                     async with self._lock:
-                        self._session_last_activity[session_id] = datetime.now()
+                        self._session_last_activity[session_id] = datetime.now(timezone.utc)
                     logger.info(f"Reusing persistent container {container_id} for session {session_id}")
                     return container
                 else:
@@ -253,9 +253,9 @@ class DockerExecutor:
         # Track the container
         async with self._lock:
             self._session_containers[session_id] = container.id
-            self._session_last_activity[session_id] = datetime.now()
+            self._session_last_activity[session_id] = datetime.now(timezone.utc)
             self._active_containers[container.id] = ContainerMetrics(
-                start_time=datetime.now(), container_id=container.id
+                start_time=datetime.now(timezone.utc), container_id=container.id
             )
 
         logger.info(f"Created persistent container {container.id} for session {session_id}")
@@ -660,17 +660,19 @@ class DockerExecutor:
                             await db_manager.add_file(file_data)
                             output_files.append(file_data)
 
+                    metrics = self._active_containers.get(
+                        container.id,
+                        ContainerMetrics(start_time=datetime.now(timezone.utc), container_id=container.id),
+                    )
                     return {
                         "stdout": output_text,
                         "stderr": "",
                         "status": "ok",
                         "files": output_files,
                         "metrics": {
-                            "memory_usage": self._active_containers.get(container.id, ContainerMetrics(start_time=datetime.now(), container_id=container.id)).memory_usage,
-                            "cpu_usage": self._active_containers.get(container.id, ContainerMetrics(start_time=datetime.now(), container_id=container.id)).cpu_usage,
-                            "execution_time": (
-                                datetime.now() - self._active_containers.get(container.id, ContainerMetrics(start_time=datetime.now(), container_id=container.id)).start_time
-                            ).total_seconds(),
+                            "memory_usage": metrics.memory_usage,
+                            "cpu_usage": metrics.cpu_usage,
+                            "execution_time": (datetime.now(timezone.utc) - metrics.start_time).total_seconds(),
                         },
                     }
 
@@ -687,7 +689,7 @@ class DockerExecutor:
                     # Update metrics but do NOT delete the container (persistent)
                     if container:
                         try:
-                            asyncio.create_task(self._update_container_metrics(container))
+                            await self._update_container_metrics(container)
                         except Exception as e:
                             logger.error(f"Error updating container metrics: {str(e)}")
 
