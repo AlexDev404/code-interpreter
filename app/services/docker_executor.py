@@ -94,6 +94,16 @@ class DockerExecutor:
                     await self.close()
                     self._docker = aiodocker.Docker()
 
+            # Verify Docker connectivity
+            try:
+                await self._docker.version()
+            except Exception as exc:
+                raise RuntimeError(
+                    "Cannot connect to Docker socket. Make sure /var/run/docker.sock is mounted:\n"
+                    "  volumes:\n"
+                    "    - /var/run/docker.sock:/var/run/docker.sock"
+                ) from exc
+
             logger.info("Docker client initialized successfully")
             return self
         except Exception as e:
@@ -306,6 +316,15 @@ class DockerExecutor:
             session_path: Path = UPLOAD_PATH / session_id
             logger.info(f"Session path: {session_path}")
             session_path.mkdir(parents=True, exist_ok=True)
+
+            # Warn if the corresponding host-side path does not exist
+            host_session_path = settings.HOST_FILE_UPLOAD_PATH_ABS / session_id
+            if not host_session_path.exists():
+                logger.warning(
+                    f"Host session path does not exist: {host_session_path}. "
+                    "This will cause the Docker bind mount to fail. "
+                    "Ensure HOST_FILE_UPLOAD_PATH_ABS is mounted into this container."
+                )
             # Log debug information
             logger.info(f"Session directory: {session_path}")
             logger.info(f"Session directory contents: {list(session_path.glob('*'))}")

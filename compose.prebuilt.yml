@@ -1,0 +1,18 @@
+services:
+  code-interpreter:
+    image: ghcr.io/martvaha/code-interpreter:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - CONTAINER_UPLOAD_PATH=/uploads
+      - HOST_FILE_UPLOAD_PATH=/tmp/code-interpreter-uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/code-interpreter-uploads:/uploads
