@@ -48,11 +48,15 @@ Use `compose.prebuilt.yml` when running the pre-built image as part of another s
 (e.g. embedded alongside LibreChat). Use the default `compose.yml` only for local
 development from source.
 
-The service uses two path concepts: **CONTAINER_UPLOAD_PATH** is the path inside the
-code-interpreter container where files are read and written; **HOST_FILE_UPLOAD_PATH**
-is the absolute path on the Docker host that the daemon uses as a bind-mount source
-when spawning execution containers. A volume mount connects the two so that both
-the app and execution containers see the same files.
+Files are stored in a Docker named volume (`ci-uploads` by default) that is shared
+between the code-interpreter container and the execution containers it spawns.
+No host filesystem paths are required.
+
+```
+code-interpreter container          execution container
+  /app/uploads (ci-uploads)  <->   /mnt/data (ci-uploads)
+       ^ file I/O                       ^ code runs here at /mnt/data/{session_id}
+```
 
 ```bash
 docker compose -f compose.prebuilt.yml up
